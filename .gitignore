@@ -3,4 +3,5 @@
 terraform-provider-*
 *.ec2
 *.s3
+.terraform/*
 
