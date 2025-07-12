@@ -1,0 +1,6 @@
+*.zip
+*.exe
+terraform-provider-*
+*.ec2
+*.s3
+
