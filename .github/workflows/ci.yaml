@@ -62,7 +62,7 @@ jobs:
 
       - name: Run Makefile lint targets
         run: |
-          make prepare-${{ matrix.module }}
+          make init-${{ matrix.module }}
           make lint-${{ matrix.module }} || true
 
       - name: Comment TFLint (if exists)
