@@ -171,38 +171,53 @@ jobs:
       - name: Create artifact zip
         run: zip -r ${{ matrix.module }}-module.zip . -i modules/${{ matrix.module }}
 
-      - name: Bump version for module
+      - name: Bump module version using semver
         id: bump
         env:
           BRANCH_NAME: ${{ github.head_ref }}
         run: |
           set -e
-          MODULE="${{ matrix.module }}"
-          BRANCH="$BRANCH_NAME"
+          MODULE=${{ matrix.module }}
 
-          if [[ "$BRANCH" == feature/* ]]; then
+          if [[ "$BRANCH_NAME" == feature/* ]]; then
             BUMP_TYPE="minor"
-          elif [[ "$BRANCH" == fix/* ]]; then
+          elif [[ "$BRANCH_NAME" == fix/* ]]; then
             BUMP_TYPE="patch"
-          elif [[ "$BRANCH" == breaking/* ]]; then
+          elif [[ "$BRANCH_NAME" == breaking/* ]]; then
             BUMP_TYPE="major"
           else
             BUMP_TYPE="patch"
           fi
 
-          echo "Bumping $MODULE module using type: $BUMP_TYPE"
+          echo " Bumping $MODULE module with bump type: $BUMP_TYPE"
 
           cd modules/$MODULE
 
-          RAW_VERSION=$(npx bump $BUMP_TYPE --preid beta --tag --commit --push --print)
+          sudo apt-get update && sudo apt-get install -y jq
+          npm install semver
 
-          VERSION=$(echo "$RAW_VERSION" | tr -d '[:space:]' | tr -d ':')
-          FINAL_TAG="${MODULE}-${VERSION}"
+          CURRENT=$(jq -r .version package.json)
+          echo "Current version: $CURRENT"
 
-          echo "Final version tag: $FINAL_TAG"
+          # Calculate next version with semver
+          NEXT=$(npx semver "$CURRENT" -i "$BUMP_TYPE")
+          echo "Next version: $NEXT"
 
-          echo "version=$FINAL_TAG" >> "$GITHUB_OUTPUT"
-          echo "VERSION=$FINAL_TAG" >> "$GITHUB_ENV"
+          jq ".version = \"$NEXT\"" package.json > tmp && mv tmp package.json
+
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git commit -am "chore($MODULE): bump version to $NEXT"
+
+          TAG="${MODULE}-v$NEXT"
+          git tag "$TAG"
+
+          git push origin "$TAG"
+
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+          echo "VERSION=$TAG" >> $GITHUB_ENV
+
 
 
       - name: Create GitHub Release
