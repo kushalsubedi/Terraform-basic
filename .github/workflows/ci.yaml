@@ -134,13 +134,20 @@ jobs:
           terraform_version: "1.1.7"
 
       - name: Terraform Plan
-        run: make plan-${{ matrix.module }}
+        id: plan
+        run: |
+          make plan-${{ matrix.module }} | tee plan.txt
 
-      - name: Comment Plan
+      - name: Truncate plan output for PR comment
+        id: truncate
+        run: |
+          head -c 65000 plan.txt > truncated_plan.txt
+
+      - name: Comment Terraform plan in PR
         uses: GetTerminus/terraform-pr-commenter@v1
         with:
           commenter_type: "plan"
-          commenter_input: "./.${{ matrix.module }}/tfplan.txt"
+          commenter_input: "./truncated_plan.txt"
           github_token: ${{ env.GITHUB_TOKEN }}
 
   build:
