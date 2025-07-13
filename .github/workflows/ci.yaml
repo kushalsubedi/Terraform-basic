@@ -190,14 +190,14 @@ jobs:
             BUMP_TYPE="patch"
           fi
 
-          echo "🔧 Bumping $MODULE module using type: $BUMP_TYPE"
+          echo " Bumping $MODULE module using type: $BUMP_TYPE"
 
           cd modules/$MODULE
 
           VERSION=$(npx bump $BUMP_TYPE --preid beta --tag --commit --push --print)
 
-          echo "version=${MODULE}-${VERSION}" >> $GITHUB_OUTPUT
-          echo "VERSION=${MODULE}-${VERSION}" >> $GITHUB_ENV
+          echo "version=${MODULE}-${VERSION//[: ]/}" >> $GITHUB_OUTPUT
+          echo "VERSION=${MODULE}-${VERSION//[: ]/}" >> $GITHUB_ENV
 
 
       - name: Create GitHub Release
