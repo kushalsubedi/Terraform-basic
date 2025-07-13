@@ -145,7 +145,7 @@ jobs:
           exit 0
 
       - name: Comment Terraform plan in PR
-        uses: GetTerminus/terraform-pr-commenter@v1
+        uses: GetTerminus/terraform-pr-commenter@v3
         with:
           commenter_type: "plan"
           commenter_input: "./truncated_plan.txt"
