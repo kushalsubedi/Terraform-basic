@@ -177,7 +177,7 @@ jobs:
           BRANCH_NAME: ${{ github.head_ref }}
         run: |
           set -e
-          MODULE=${{ matrix.module }}
+          MODULE="${{ matrix.module }}"
           BRANCH="$BRANCH_NAME"
 
           if [[ "$BRANCH" == feature/* ]]; then
@@ -190,17 +190,19 @@ jobs:
             BUMP_TYPE="patch"
           fi
 
-          echo " Bumping $MODULE module using type: $BUMP_TYPE"
+          echo "Bumping $MODULE module using type: $BUMP_TYPE"
 
           cd modules/$MODULE
 
-          MODULE=${{ matrix.module }}
-          VERSION=$(npx bump $BUMP_TYPE --preid beta --tag --commit --push --print)
+          RAW_VERSION=$(npx bump $BUMP_TYPE --preid beta --tag --commit --push --print)
 
-          SAFE_VERSION=$(echo "${MODULE}-${VERSION}" | tr -d ': ')
+          VERSION=$(echo "$RAW_VERSION" | tr -d '[:space:]' | tr -d ':')
+          FINAL_TAG="${MODULE}-${VERSION}"
 
-          echo "version=$SAFE_VERSION" >> $GITHUB_OUTPUT
-          echo "VERSION=$SAFE_VERSION" >> $GITHUB_ENV
+          echo "Final version tag: $FINAL_TAG"
+
+          echo "version=$FINAL_TAG" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$FINAL_TAG" >> "$GITHUB_ENV"
 
 
       - name: Create GitHub Release
