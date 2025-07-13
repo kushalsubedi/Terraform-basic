@@ -194,10 +194,13 @@ jobs:
 
           cd modules/$MODULE
 
+          MODULE=${{ matrix.module }}
           VERSION=$(npx bump $BUMP_TYPE --preid beta --tag --commit --push --print)
 
-          echo "version=${MODULE}-${VERSION//[: ]/}" >> $GITHUB_OUTPUT
-          echo "VERSION=${MODULE}-${VERSION//[: ]/}" >> $GITHUB_ENV
+          SAFE_VERSION=$(echo "${MODULE}-${VERSION}" | tr -d ': ')
+
+          echo "version=$SAFE_VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$SAFE_VERSION" >> $GITHUB_ENV
 
 
       - name: Create GitHub Release
