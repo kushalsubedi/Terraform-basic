@@ -169,32 +169,36 @@ jobs:
         run: npm install -g bump
 
       - name: Create artifact zip
-        run: zip -r ${{ matrix.module }}-module.zip . -i ".${{ matrix.module }}/*"
+        run: zip -r ${{ matrix.module }}-module.zip . -i modules/${{ matrix.module }}
 
-      - name: Determine bump strategy from branch name
-        id: bump-strategy
-        env:
-          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-        run: |
-          echo "Branch: $BRANCH_NAME"
-
-          if [[ "$BRANCH_NAME" == feature/* ]]; then
-            echo "bump_type=minor" >> $GITHUB_OUTPUT
-          elif [[ "$BRANCH_NAME" == fix/* ]]; then
-            echo "bump_type=patch" >> $GITHUB_OUTPUT
-          elif [[ "$BRANCH_NAME" == breaking/* ]]; then
-            echo "bump_type=major" >> $GITHUB_OUTPUT
-          else
-            echo "bump_type=prepatch" >> $GITHUB_OUTPUT
-          ficho "bump_type=prepatch" >> $GITHUB_OUTPUT
-            fi
-
-      - name: Run bump (beta tag only)
+      - name: Bump version for module
         id: bump
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
         run: |
-          VERSION=$(npx bump prepatch --preid beta --tag --commit --push --print)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          set -e
+          MODULE=${{ matrix.module }}
+          BRANCH="$BRANCH_NAME"
+
+          if [[ "$BRANCH" == feature/* ]]; then
+            BUMP_TYPE="minor"
+          elif [[ "$BRANCH" == fix/* ]]; then
+            BUMP_TYPE="patch"
+          elif [[ "$BRANCH" == breaking/* ]]; then
+            BUMP_TYPE="major"
+          else
+            BUMP_TYPE="patch"
+          fi
+
+          echo "🔧 Bumping $MODULE module using type: $BUMP_TYPE"
+
+          cd modules/$MODULE
+
+          VERSION=$(npx bump $BUMP_TYPE --preid beta --tag --commit --push --print)
+
+          echo "version=${MODULE}-${VERSION}" >> $GITHUB_OUTPUT
+          echo "VERSION=${MODULE}-${VERSION}" >> $GITHUB_ENV
+
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
