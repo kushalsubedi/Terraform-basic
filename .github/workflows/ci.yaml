@@ -1,16 +1,20 @@
 name: Terraform Module CI/CD
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
+    types: [opened, synchronize, reopened]
     branches:
       - main
     paths:
       - 'modules/ec2/**'
       - 'modules/s3/**'
       - '.github/workflows/**'
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+env:
+  GITHUB_TOKEN: ${{secrets.GH_PAT}}
 
 jobs:
   detect-changes:
@@ -71,7 +75,7 @@ jobs:
         with:
           commenter_type: "tflint"
           commenter_input: "./.${{ matrix.module }}/tflint_output.txt"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GH_PAT }}
 
       - name: Terraform FMT
         working-directory: modules/${{ matrix.module }}
@@ -90,6 +94,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        name: Checkout Code
+        with:
+          fetch-depth: 0
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -97,13 +104,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.1.7"
+
       - name: Run Terraform Init
         run: make init-${{ matrix.module }}
 
       - name: Run TFSEC scan & comment
         uses: aquasecurity/tfsec-pr-commenter-action@v1.2.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GH_PAT }}
           working_directory: .${{ matrix.module }}
 
   plan:
@@ -122,15 +133,24 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Terraform Plan
-        run: make plan-${{ matrix.module }}
-
-      - name: Comment Plan
-        uses: GetTerminus/terraform-pr-commenter@v1
+      - uses: hashicorp/setup-terraform@v3
         with:
-          commenter_type: "plan"
-          commenter_input: "./.${{ matrix.module }}/tfplan.txt"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          terraform_version: "1.1.7"
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          make plan-${{matrix.module}} |& tee tf_plan.txt
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Comment Terraform Plan in PR
+        uses: GetTerminus/terraform-pr-commenter@v3
+        env:
+          GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        with:
+          commenter_type: plan
+          commenter_plan_path: tf_plan.txt
+          commenter_exitcode: ${{ steps.plan.outputs.exit }}
 
   build:
     strategy:
@@ -153,14 +173,62 @@ jobs:
         run: npm install -g bump
 
       - name: Create artifact zip
-        run: zip -r ${{ matrix.module }}-module.zip .${{ matrix.module }}
+        run: zip -r ${{ matrix.module }}-module.zip . -i modules/${{ matrix.module }}
 
-      - name: Run bump (beta tag only)
+      - name: Bump module version using semver
         id: bump
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+          GIT_TOKEN: ${{secrets.GH_PAT}}
         run: |
-          VERSION=$(npx bump prepatch --preid beta --tag --commit --push --print)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          set -e
+          MODULE=${{ matrix.module }}
+
+          if [[ "$BRANCH_NAME" == feature/* ]]; then
+            BUMP_TYPE="minor"
+          elif [[ "$BRANCH_NAME" == fix/* ]]; then
+            BUMP_TYPE="patch"
+          elif [[ "$BRANCH_NAME" == breaking/* ]]; then
+            BUMP_TYPE="major"
+          else
+            BUMP_TYPE="patch"
+          fi
+
+          echo " Bumping $MODULE module with bump type: $BUMP_TYPE"
+
+          cd modules/$MODULE
+
+          sudo apt-get update && sudo apt-get install -y jq
+          npm install semver
+
+          CURRENT=$(jq -r .version package.json)
+          echo "Current version: $CURRENT"
+
+          # Calculate next version with semver
+          NEXT=$(npx semver "$CURRENT" -i "$BUMP_TYPE")
+          echo "Next version: $NEXT"
+
+          jq ".version = \"$NEXT\"" package.json > tmp && mv tmp package.json
+
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git commit -am "chore($MODULE): bump version to $NEXT"
+
+          TAG="${MODULE}-v$NEXT"
+          git tag "$TAG"
+          git remote set-url origin https://x-access-token:${GIT_TOKEN}@github.com/${{ github.repository }}
+
+          # Push commit to branch
+          git push origin HEAD:refs/heads/${BRANCH_NAME}
+
+          # Push tags independently
+          git push origin --tags
+
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+          echo "VERSION=$TAG" >> $GITHUB_ENV
+
+
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
