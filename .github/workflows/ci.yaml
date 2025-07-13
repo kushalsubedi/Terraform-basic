@@ -137,7 +137,7 @@ jobs:
         id: plan
         run: |
           set -o pipefail
-          make plan-${{matrix.module}} |& tee tf_plan.txt
+          make plan-${{matrix.module}} -lock=false -input=false |& tee tf_plan.txt
           echo "exit=$?" >> "$GITHUB_OUTPUT"
 
       - name: Comment Terraform Plan in PR
