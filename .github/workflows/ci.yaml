@@ -71,7 +71,7 @@ jobs:
         with:
           commenter_type: "tflint"
           commenter_input: "./.${{ matrix.module }}/tflint_output.txt"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GH_PAT }}
 
       - name: Terraform FMT
         working-directory: modules/${{ matrix.module }}
@@ -103,7 +103,7 @@ jobs:
       - name: Run TFSEC scan & comment
         uses: aquasecurity/tfsec-pr-commenter-action@v1.2.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GH_PAT }}
           working_directory: .${{ matrix.module }}
 
   plan:
@@ -130,7 +130,7 @@ jobs:
         with:
           commenter_type: "plan"
           commenter_input: "./.${{ matrix.module }}/tfplan.txt"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GH_PAT }}
 
   build:
     strategy:
