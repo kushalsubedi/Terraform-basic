@@ -169,7 +169,7 @@ jobs:
         run: npm install -g bump
 
       - name: Create artifact zip
-        run: zip -r ${{ matrix.module }}-module.zip .${{ matrix.module }}
+        run: zip -r ${{ matrix.module }}-module.zip . -i ".${{ matrix.module }}/*"
 
       - name: Determine bump strategy from branch name
         id: bump-strategy
