@@ -88,12 +88,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        name: Checkout Code
+        with:
+          fetch-depth: 0
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.1.7"
 
       - name: Run Terraform Init
         run: make init-${{ matrix.module }}
@@ -119,6 +126,10 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.1.7"
 
       - name: Terraform Plan
         run: make plan-${{ matrix.module }}
@@ -152,6 +163,24 @@ jobs:
 
       - name: Create artifact zip
         run: zip -r ${{ matrix.module }}-module.zip .${{ matrix.module }}
+
+      - name: Determine bump strategy from branch name
+        id: bump-strategy
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          echo "Branch: $BRANCH_NAME"
+
+          if [[ "$BRANCH_NAME" == feature/* ]]; then
+            echo "bump_type=minor" >> $GITHUB_OUTPUT
+          elif [[ "$BRANCH_NAME" == fix/* ]]; then
+            echo "bump_type=patch" >> $GITHUB_OUTPUT
+          elif [[ "$BRANCH_NAME" == breaking/* ]]; then
+            echo "bump_type=major" >> $GITHUB_OUTPUT
+          else
+            echo "bump_type=prepatch" >> $GITHUB_OUTPUT
+          ficho "bump_type=prepatch" >> $GITHUB_OUTPUT
+            fi
 
       - name: Run bump (beta tag only)
         id: bump
