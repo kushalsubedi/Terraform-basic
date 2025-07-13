@@ -15,7 +15,7 @@ init-ec2:
 plan-ec2: init-ec2
 	@cd $(EC2_DIR) && \
 	terraform plan -lock=false -input=false | tee tf_plan.txt; \
-	EXIT=$$${PIPESTATUS[0]}; \
+	EXIT=$${PIPESTATUS[0]}; \
 	exit $$EXIT
 
 
@@ -35,7 +35,7 @@ init-s3:
 plan-s3: init-s3
 	@cd $(S3_DIR) && \
 	terraform plan -lock=false -input=false | tee tf_plan.txt; \
-	EXIT=$$${PIPESTATUS[0]}; \
+	EXIT=$${PIPESTATUS[0]}; \
 	exit $$EXIT
 
 apply-s3: init-s3
