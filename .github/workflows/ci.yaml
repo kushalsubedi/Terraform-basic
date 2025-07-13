@@ -89,7 +89,7 @@ jobs:
     strategy:
       matrix:
         module: [ec2, s3]
-    needs: lint
+    needs: [lint, detect-changes]
     if: needs.lint.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -121,7 +121,7 @@ jobs:
     strategy:
       matrix:
         module: [ec2, s3]
-    needs: [lint, security-scan]
+    needs: [lint, security-scan, detect-changes]
     if: needs.lint.result == 'success' && needs.security-scan.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -156,7 +156,7 @@ jobs:
     strategy:
       matrix:
         module: [ec2, s3]
-    needs: [plan]
+    needs: [plan, detect-changes]
     if: github.event_name == 'pull_request' && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -230,13 +230,11 @@ jobs:
           echo "VERSION=$TAG" >> $GITHUB_ENV
 
 
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload Module Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ env.VERSION }}
-          name: Release ${{ env.VERSION }}
-          files: ${{ matrix.module }}-module.zip
+          name: ${{ matrix.module }}-${{ env.VERSION }}
+          path: ${{ matrix.module }}-module.zip
 
       - name: Comment Tag in PR
         uses: mshick/add-pr-comment@v2
