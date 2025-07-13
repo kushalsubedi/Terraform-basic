@@ -138,10 +138,11 @@ jobs:
         run: |
           make plan-${{ matrix.module }} | tee plan.txt
 
-      - name: Truncate plan output for PR comment
-        id: truncate
+      - name: Truncate plan output
         run: |
           head -c 65000 plan.txt > truncated_plan.txt
+          echo "Truncated plan output for safer PR comment"
+          exit 0
 
       - name: Comment Terraform plan in PR
         uses: GetTerminus/terraform-pr-commenter@v1
