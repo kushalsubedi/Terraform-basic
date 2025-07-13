@@ -219,7 +219,11 @@ jobs:
           git tag "$TAG"
           git remote set-url origin https://x-access-token:${GIT_TOKEN}@github.com/${{ github.repository }}
 
-          git push origin HEAD --tags
+          # Push commit to branch
+          git push origin HEAD:refs/heads/${BRANCH_NAME}
+
+          # Push tags independently
+          git push origin --tags
 
           echo "version=$TAG" >> $GITHUB_OUTPUT
           echo "VERSION=$TAG" >> $GITHUB_ENV
