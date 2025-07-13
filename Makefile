@@ -13,7 +13,10 @@ init-ec2:
 	@cd $(EC2_DIR) && terraform init
 
 plan-ec2: init-ec2
-	@cd $(EC2_DIR) && terraform plan
+	@cd $(EC2_DIR) && \
+	terraform plan -lock=false -input=false | tee tf_plan.txt; \
+	EXIT=$$${PIPESTATUS[0]}; \
+	exit $$EXIT
 
 
 apply-ec2: init-ec2
@@ -28,8 +31,12 @@ init-s3:
 	@cp -r modules/ $(S3_DIR)/
 	@cd $(S3_DIR) && terraform init
 
+
 plan-s3: init-s3
-	@cd $(S3_DIR) && terraform plan
+	@cd $(S3_DIR) && \
+	terraform plan -lock=false -input=false | tee tf_plan.txt; \
+	EXIT=$$${PIPESTATUS[0]}; \
+	exit $$EXIT
 
 apply-s3: init-s3
 	@cd $(S3_DIR) && terraform apply -auto-approve
