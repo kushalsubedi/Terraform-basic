@@ -175,6 +175,7 @@ jobs:
         id: bump
         env:
           BRANCH_NAME: ${{ github.head_ref }}
+          GIT_TOKEN: ${{secrets.GH_PAT}}
         run: |
           set -e
           MODULE=${{ matrix.module }}
@@ -212,8 +213,9 @@ jobs:
 
           TAG="${MODULE}-v$NEXT"
           git tag "$TAG"
+          git remote set-url origin https://x-access-token:${GIT_TOKEN}@github.com/${{ github.repository }}
 
-          git push origin "$TAG"
+          git push origin HEAD --tags
 
           echo "version=$TAG" >> $GITHUB_OUTPUT
           echo "VERSION=$TAG" >> $GITHUB_ENV
