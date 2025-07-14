@@ -14,7 +14,7 @@ provider "aws" {
 
 # IAM Role for EC2
 resource "aws_iam_role" "ec2_role" {
-  name = "ec2-s3-writer-role"
+  name = "ec2-s3-writer-role-kushal"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -26,27 +26,46 @@ resource "aws_iam_role" "ec2_role" {
       Action = "sts:AssumeRole"
     }]
   })
+    tags = {
+    Name        = "ec2-s3-writer-role-kushal"
+    Creator       = "kushalsubedi"
+  }
 }
 
 # IAM Policy allowing PutObject to the S3 bucket
-resource "aws_iam_role_policy" "allow_s3_put" {
-  name = "AllowS3PutObject"
+resource "aws_iam_role_policy" "allow_s3_get_put_list" {
+  name = "AllowS3GetPutList"
   role = aws_iam_role.ec2_role.id
 
   policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Action = ["s3:PutObject"],
-      Resource = "arn:aws:s3:::kushal-ec2-write-only-bucket"
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject"
+        ]
+        Resource = "arn:aws:s3:::kushal-ec2-write-only-bucket/*"
+      },
+      {
+        Effect = "Allow"
+        Action = "s3:ListBucket"
+        Resource = "arn:aws:s3:::kushal-ec2-write-only-bucket"
+      }
+    ]
   })
-}
 
+
+}
 # Instance Profile to attach role to EC2
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "ec2-s3-writer-profile"
   role = aws_iam_role.ec2_role.name
+  tags = {
+    Name: "kushal-ec2-profile"
+    Creator: "kushalSubedi"
+  }
 }
 
 module "ec2" {
