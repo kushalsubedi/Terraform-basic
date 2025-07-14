@@ -116,6 +116,7 @@ jobs:
         with:
           github_token: ${{ secrets.GH_PAT }}
           working_directory: .${{ matrix.module }}
+          tfsec_version: v1.28.1
 
   plan:
     strategy:
