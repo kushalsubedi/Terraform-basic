@@ -176,30 +176,19 @@ jobs:
         run: zip -r ${{ matrix.module }}-module.zip . -i modules/${{ matrix.module }}
 
       - name: Tag module with short commit hash
-        id: bump
         env:
           BRANCH_NAME: ${{ github.head_ref }}
           GIT_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           set -e
           MODULE=${{ matrix.module }}
-
           echo "Tagging $MODULE module with commit hash"
-
           cd modules/$MODULE
-
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-
-          # Get the short commit hash
           COMMIT_HASH=$(git rev-parse --short HEAD)
           TAG="${MODULE}-${COMMIT_HASH}"
-
           git tag "$TAG"
-
-          git remote set-url origin https://x-access-token:${GIT_TOKEN}@github.com/${{ github.repository }}
-          git push origin "$TAG"
-
           echo "version=$TAG" >> $GITHUB_OUTPUT
           echo "VERSION=$TAG" >> $GITHUB_ENV
 
