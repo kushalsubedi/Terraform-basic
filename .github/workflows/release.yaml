@@ -32,7 +32,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -y jq
+          sudo apt-get update && sudo apt-get install -y jq zip
           npm install semver
 
       - name: Determine bump type from merged branch
@@ -50,20 +50,6 @@ jobs:
           else
             echo "bump_type=patch" >> $GITHUB_OUTPUT
           fi
-
-      - name: Download artifact from previous PR build
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ matrix.module }}-*
-          path: ./artifacts/
-
-      - name: Extract short commit hash from artifact filename
-        id: extract_hash
-        run: |
-          FILENAME=$(ls ./artifacts | grep "${{ matrix.module }}-" | head -n1)
-          echo "Artifact: $FILENAME"
-          COMMIT_HASH=$(echo "$FILENAME" | sed -E "s/^${{ matrix.module }}-([a-f0-9]+)\.zip$/\1/")
-          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
 
       - name: Bump version and tag
         run: |
@@ -91,14 +77,31 @@ jobs:
           git push origin HEAD
           git push origin "${MODULE}-v$NEXT"
 
-          echo "RELEASE_VERSION=${NEXT}" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=$NEXT" >> $GITHUB_ENV
+
+      - name: Create versioned artifact
+        run: |
+          MODULE=${{ matrix.module }}
+          VERSION=${{ env.RELEASE_VERSION }}
+          ZIP_NAME="${MODULE}-v${VERSION}.zip"
+
+          echo "Creating artifact $ZIP_NAME"
+
+          cd modules/$MODULE
+          zip -r "../../$ZIP_NAME" .
+
+      - name: Upload versioned artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.module }}-v${{ env.RELEASE_VERSION }}
+          path: ${{ matrix.module }}-v${{ env.RELEASE_VERSION }}.zip
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2.3.2
         with:
           tag_name: ${{ matrix.module }}-v${{ env.RELEASE_VERSION }}
           name: "${{ matrix.module }} module v${{ env.RELEASE_VERSION }}"
-          files: ./artifacts/${{ matrix.module }}-${{ env.COMMIT_HASH }}.zip
+          files: ${{ matrix.module }}-v${{ env.RELEASE_VERSION }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
