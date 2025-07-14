@@ -1,12 +1,14 @@
-
-  {
+{
   "name": "s3-module",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Terraform S3 module",
   "main": "index.js",
   "scripts": {},
-  "keywords": ["terraform", "module", "s3"],
+  "keywords": [
+    "terraform",
+    "module",
+    "s3"
+  ],
   "author": "your-name",
   "license": "MIT"
 }
-
