@@ -1,57 +1,79 @@
-name: Terraform module deploy
+name: Deploy Terraform Module
 
 on:
   workflow_dispatch:
     inputs:
       module:
-        description: "Terraform module to deploy"
+        description: 'Module to deploy (ec2 or s3)'
         required: true
         type: choice
         options:
           - ec2
           - s3
       version:
-        description: "Artifact version (e.g., v0.2.0)"
+        description: 'Version to deploy (e.g. v0.3.1)'
         required: true
+        type: string
 
 permissions:
   contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      MODULE: ${{ github.event.inputs.module }}
-      VERSION: ${{ github.event.inputs.version }}
-      ARTIFACT_NAME: ${{ github.event.inputs.module }}-${{ github.event.inputs.version }}
 
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: ./artifact
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Extract artifact
-        run: unzip "./artifact/${{ env.ARTIFACT_NAME }}.zip" -d ./workspace
+      - name: Set variables
+        run: |
+          echo "MODULE=${{ inputs.module }}" >> $GITHUB_ENV
+          echo "VERSION=${{ inputs.version }}" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=${{ inputs.module }}-${{ inputs.version }}.zip" >> $GITHUB_ENV
 
-      - name: Install Terraform & dependencies
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.6.6
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: Setup GitHub CLI
+        uses: cli/cli-action@v2
+
+      - name: Download module release zip from GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Downloading $ARTIFACT_NAME from release..."
+
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${MODULE}-${VERSION} --jq .id)
+          ASSET_ID=$(gh api repos/${{ github.repository }}/releases/${RELEASE_ID}/assets --jq ".[] | select(.name == \"${ARTIFACT_NAME}\") | .id")
+
+          gh api \
+            -H "Accept: application/octet-stream" \
+            /repos/${{ github.repository }}/releases/assets/${ASSET_ID} > $ARTIFACT_NAME
+
+          mkdir -p artifact
+          mv $ARTIFACT_NAME artifact/
+
+      - name: Unzip artifact
+        run: |
+          unzip artifact/${ARTIFACT_NAME} -d extracted
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Install make
-        run: sudo apt-get update && sudo apt-get install -y make
-
-      - name: Run make apply
+      - name: Run Makefile for selected module
         run: |
-          cd workspace
-          make apply_${MODULE}
+          if [[ "$MODULE" == "ec2" ]]; then
+            make apply_ec2
+          elif [[ "$MODULE" == "s3" ]]; then
+            make apply_s3
+          fi
 
