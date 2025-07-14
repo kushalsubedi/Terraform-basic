@@ -57,7 +57,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           REPO: ${{ github.repository }}
         run: |
-          # Determine bump type from merged branch
           MERGED_BRANCH=$(git log -1 --pretty=%B | grep -oE 'Merge pull request #[0-9]+ from .+/(.+)' | cut -d/ -f2-)
           echo "Merged branch: $MERGED_BRANCH"
 
@@ -92,17 +91,32 @@ jobs:
           git push origin HEAD
           git push origin "${MODULE}-v$NEXT"
 
+          echo "TAG_NAME=${MODULE}-v${NEXT}" >> $GITHUB_ENV
+
           ZIP_NAME="${MODULE}-v${NEXT}.zip"
           zip -r "../../$ZIP_NAME" .
 
           cd ../..
 
-          # Optional: upload artifact or create GitHub release here
-          echo "Released $MODULE version $NEXT"
+      - name: Create GitHub Release for EC2
+        uses: softprops/action-gh-release@v2.3.2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: "${{ env.TAG_NAME }} Release"
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Upload EC2 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAG_NAME }}
+          path: modules/ec2/${{ env.TAG_NAME }}.zip
 
   release-s3:
     runs-on: ubuntu-latest
-    needs: [detect-changes]
+    needs: [detect-changes, release-ec2]
     if: needs.detect-changes.outputs.s3 == 'true'
     steps:
       - name: Checkout repository
@@ -159,11 +173,26 @@ jobs:
           git push origin HEAD
           git push origin "${MODULE}-v$NEXT"
 
+          echo "TAG_NAME=${MODULE}-v${NEXT}" >> $GITHUB_ENV
+
           ZIP_NAME="${MODULE}-v${NEXT}.zip"
           zip -r "../../$ZIP_NAME" .
 
           cd ../..
 
-          # Optional: upload artifact or create GitHub release here
-          echo "Released $MODULE version $NEXT"
+      - name: Create GitHub Release for S3
+        uses: softprops/action-gh-release@v2.3.2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: "${{ env.TAG_NAME }} Release"
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Upload S3 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAG_NAME }}
+          path: modules/s3/${{ env.TAG_NAME }}.zip
 
