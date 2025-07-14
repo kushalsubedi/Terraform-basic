@@ -71,9 +71,13 @@ jobs:
           fi
 
           MODULE=ec2
+          echo "Releasing $MODULE module with bump type: $BUMP_TYPE"
           cd modules/$MODULE
           CURRENT=$(jq -r .version package.json)
+
           NEXT=$(npx semver "$CURRENT" -i "$BUMP_TYPE")
+          echo "Next version: $NEXT"
+
           jq ".version = \"$NEXT\"" package.json > tmp && mv tmp package.json
 
           git config user.name "github-actions"
@@ -89,9 +93,11 @@ jobs:
           echo "RELEASE_VERSION=${NEXT}" >> $GITHUB_ENV
           cd ../..
 
-      - name: Create EC2 artifact (ec2.tf)
+      - name: Create EC2 artifact (ec2.tf + modules/ec2)
         run: |
-          zip "ec2-v${{ env.RELEASE_VERSION }}.zip" ec2.tf
+          VERSION=${{ env.RELEASE_VERSION }}
+          ZIP_NAME="ec2-v${VERSION}.zip"
+          zip -r "$ZIP_NAME" ec2.tf modules/ec2
 
       - name: Upload EC2 artifact
         uses: actions/upload-artifact@v4
@@ -145,9 +151,13 @@ jobs:
           fi
 
           MODULE=s3
+          echo "Releasing $MODULE module with bump type: $BUMP_TYPE"
           cd modules/$MODULE
           CURRENT=$(jq -r .version package.json)
+
           NEXT=$(npx semver "$CURRENT" -i "$BUMP_TYPE")
+          echo "Next version: $NEXT"
+
           jq ".version = \"$NEXT\"" package.json > tmp && mv tmp package.json
 
           git config user.name "github-actions"
@@ -163,9 +173,11 @@ jobs:
           echo "RELEASE_VERSION=${NEXT}" >> $GITHUB_ENV
           cd ../..
 
-      - name: Create S3 artifact (s3.tf)
+      - name: Create S3 artifact (s3.tf + modules/s3)
         run: |
-          zip "s3-v${{ env.RELEASE_VERSION }}.zip" s3.tf
+          VERSION=${{ env.RELEASE_VERSION }}
+          ZIP_NAME="s3-v${VERSION}.zip"
+          zip -r "$ZIP_NAME" s3.tf modules/s3
 
       - name: Upload S3 artifact
         uses: actions/upload-artifact@v4
@@ -181,6 +193,4 @@ jobs:
           files: s3-v${{ env.RELEASE_VERSION }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-
-
 
