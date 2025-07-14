@@ -28,8 +28,10 @@ jobs:
         with:
           filters: |
             ec2:
+              - 'ec2.tf'
               - 'modules/ec2/**'
             s3:
+              - 's3.tf'
               - 'modules/s3/**'
 
   release-ec2:
@@ -37,13 +39,11 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.ec2 == 'true'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -53,7 +53,6 @@ jobs:
           npm install semver
 
       - name: Release EC2 module
-        id: release_ec2
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           REPO: ${{ github.repository }}
@@ -73,12 +72,8 @@ jobs:
 
           MODULE=ec2
           cd modules/$MODULE
-
           CURRENT=$(jq -r .version package.json)
           NEXT=$(npx semver "$CURRENT" -i "$BUMP_TYPE")
-          echo "Current version: $CURRENT"
-          echo "Next version: $NEXT"
-
           jq ".version = \"$NEXT\"" package.json > tmp && mv tmp package.json
 
           git config user.name "github-actions"
@@ -90,34 +85,39 @@ jobs:
           git push origin HEAD
           git push origin "${MODULE}-v$NEXT"
 
-          cd ../..
           echo "TAG_NAME=${MODULE}-v${NEXT}" >> $GITHUB_ENV
-          echo "ZIP_NAME=${MODULE}-v${NEXT}.zip" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${NEXT}" >> $GITHUB_ENV
+          cd ../..
 
-          # Only include ec2.tf from the module
-          zip "${MODULE}-v${NEXT}.zip" "modules/${MODULE}/ec2.tf"
+      - name: Create EC2 artifact (ec2.tf)
+        run: |
+          zip "ec2-v${{ env.RELEASE_VERSION }}.zip" ec2.tf
+
+      - name: Upload EC2 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ec2-v${{ env.RELEASE_VERSION }}
+          path: ec2-v${{ env.RELEASE_VERSION }}.zip
 
       - name: Create GitHub Release for EC2
         uses: softprops/action-gh-release@v2.3.2
         with:
-          tag_name: ${{ env.TAG_NAME }}
-          name: "${{ env.TAG_NAME }} Release"
-          files: ${{ env.ZIP_NAME }}
+          tag_name: ec2-v${{ env.RELEASE_VERSION }}
+          name: "ec2 module v${{ env.RELEASE_VERSION }}"
+          files: ec2-v${{ env.RELEASE_VERSION }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
   release-s3:
     runs-on: ubuntu-latest
-    needs: [detect-changes, release-ec2] # run after ec2 (sequential)
+    needs: detect-changes
     if: needs.detect-changes.outputs.s3 == 'true'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -127,7 +127,6 @@ jobs:
           npm install semver
 
       - name: Release S3 module
-        id: release_s3
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           REPO: ${{ github.repository }}
@@ -147,12 +146,8 @@ jobs:
 
           MODULE=s3
           cd modules/$MODULE
-
           CURRENT=$(jq -r .version package.json)
           NEXT=$(npx semver "$CURRENT" -i "$BUMP_TYPE")
-          echo "Current version: $CURRENT"
-          echo "Next version: $NEXT"
-
           jq ".version = \"$NEXT\"" package.json > tmp && mv tmp package.json
 
           git config user.name "github-actions"
@@ -164,20 +159,28 @@ jobs:
           git push origin HEAD
           git push origin "${MODULE}-v$NEXT"
 
-          cd ../..
           echo "TAG_NAME=${MODULE}-v${NEXT}" >> $GITHUB_ENV
-          echo "ZIP_NAME=${MODULE}-v${NEXT}.zip" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${NEXT}" >> $GITHUB_ENV
+          cd ../..
 
-          # Only include s3.tf from the module
-          zip "${MODULE}-v${NEXT}.zip" "modules/${MODULE}/s3.tf"
+      - name: Create S3 artifact (s3.tf)
+        run: |
+          zip "s3-v${{ env.RELEASE_VERSION }}.zip" s3.tf
+
+      - name: Upload S3 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: s3-v${{ env.RELEASE_VERSION }}
+          path: s3-v${{ env.RELEASE_VERSION }}.zip
 
       - name: Create GitHub Release for S3
         uses: softprops/action-gh-release@v2.3.2
         with:
-          tag_name: ${{ env.TAG_NAME }}
-          name: "${{ env.TAG_NAME }} Release"
-          files: ${{ env.ZIP_NAME }}
+          tag_name: s3-v${{ env.RELEASE_VERSION }}
+          name: "s3 module v${{ env.RELEASE_VERSION }}"
+          files: s3-v${{ env.RELEASE_VERSION }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
 
 
