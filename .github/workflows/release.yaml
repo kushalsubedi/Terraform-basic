@@ -1,0 +1,104 @@
+name: Terraform Module Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [ec2, s3]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          npm install semver
+
+      - name: Determine bump type from merged branch
+        id: bump_type
+        run: |
+          MERGED_BRANCH=$(git log -1 --pretty=%B | grep -oE 'Merge pull request #[0-9]+ from .+/(.+)' | cut -d/ -f2-)
+          echo "Merged branch: $MERGED_BRANCH"
+
+          if [[ "$MERGED_BRANCH" == feature/* ]]; then
+            echo "bump_type=minor" >> $GITHUB_OUTPUT
+          elif [[ "$MERGED_BRANCH" == fix/* ]]; then
+            echo "bump_type=patch" >> $GITHUB_OUTPUT
+          elif [[ "$MERGED_BRANCH" == breaking/* ]]; then
+            echo "bump_type=major" >> $GITHUB_OUTPUT
+          else
+            echo "bump_type=patch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download artifact from previous PR build
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.module }}-*
+          path: ./artifacts/
+
+      - name: Extract short commit hash from artifact filename
+        id: extract_hash
+        run: |
+          FILENAME=$(ls ./artifacts | grep "${{ matrix.module }}-" | head -n1)
+          echo "Artifact: $FILENAME"
+          COMMIT_HASH=$(echo "$FILENAME" | sed -E "s/^${{ matrix.module }}-([a-f0-9]+)\.zip$/\1/")
+          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+
+      - name: Bump version and tag
+        run: |
+          set -e
+          MODULE=${{ matrix.module }}
+          BUMP_TYPE=${{ steps.bump_type.outputs.bump_type }}
+
+          echo "Releasing $MODULE module with bump type: $BUMP_TYPE"
+          cd modules/$MODULE
+
+          CURRENT=$(jq -r .version package.json)
+          echo "Current version: $CURRENT"
+
+          NEXT=$(npx semver "$CURRENT" -i "$BUMP_TYPE")
+          echo "Next version: $NEXT"
+
+          jq ".version = \"$NEXT\"" package.json > tmp && mv tmp package.json
+
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git commit -am "chore($MODULE): release v$NEXT"
+          git tag "${MODULE}-v$NEXT"
+
+          git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}
+          git push origin HEAD
+          git push origin "${MODULE}-v$NEXT"
+
+          echo "RELEASE_VERSION=${NEXT}" >> $GITHUB_ENV
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2.3.2
+        with:
+          tag_name: ${{ matrix.module }}-v${{ env.RELEASE_VERSION }}
+          name: "${{ matrix.module }} module v${{ env.RELEASE_VERSION }}"
+          files: ./artifacts/${{ matrix.module }}-${{ env.COMMIT_HASH }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
