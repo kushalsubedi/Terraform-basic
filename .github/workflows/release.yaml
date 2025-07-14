@@ -52,9 +52,6 @@ jobs:
           sudo apt-get update && sudo apt-get install -y jq zip
           npm install semver
 
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.1.7"
       - name: Release EC2 module
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
