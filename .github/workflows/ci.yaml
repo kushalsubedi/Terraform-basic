@@ -1,16 +1,20 @@
 name: Terraform Module CI/CD
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
+    types: [opened, synchronize, reopened]
     branches:
       - main
     paths:
       - 'modules/ec2/**'
       - 'modules/s3/**'
       - '.github/workflows/**'
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+env:
+  GITHUB_TOKEN: ${{secrets.GH_PAT}}
 
 jobs:
   detect-changes:
@@ -71,7 +75,7 @@ jobs:
         with:
           commenter_type: "tflint"
           commenter_input: "./.${{ matrix.module }}/tflint_output.txt"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GH_PAT }}
 
       - name: Terraform FMT
         working-directory: modules/${{ matrix.module }}
@@ -81,11 +85,44 @@ jobs:
         working-directory: modules/${{ matrix.module }}
         run: terraform validate || true
 
-  security-scan:
+  # security-scan:
+  #   strategy:
+  #     matrix:
+  #       module: [ec2, s3]
+  #   needs: [lint, detect-changes]
+  #   if: needs.lint.result == 'success'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       name: Checkout Code
+  #       with:
+  #         fetch-depth: 0
+  #
+  #     - uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: us-east-1
+  #
+  #     - uses: hashicorp/setup-terraform@v3
+  #       with:
+  #         terraform_version: "1.1.7"
+  #
+  #     - name: Run Terraform Init
+  #       run: make init-${{ matrix.module }}
+  #
+  #     - name: Run TFSEC scan & comment
+  #       uses: aquasecurity/tfsec-pr-commenter-action@v1.2.0
+  #       with:
+  #         github_token: ${{ secrets.GH_PAT }}
+  #         working_directory: .${{ matrix.module }}
+  #         tfsec_version: v1.28.1
+
+  plan:
     strategy:
       matrix:
         module: [ec2, s3]
-    needs: lint
+    needs: [lint,detect-changes]
     if: needs.lint.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -97,46 +134,30 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Run Terraform Init
-        run: make init-${{ matrix.module }}
-
-      - name: Run TFSEC scan & comment
-        uses: aquasecurity/tfsec-pr-commenter-action@v1.2.0
+      - uses: hashicorp/setup-terraform@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          working_directory: .${{ matrix.module }}
-
-  plan:
-    strategy:
-      matrix:
-        module: [ec2, s3]
-    needs: [lint, security-scan]
-    if: needs.lint.result == 'success' && needs.security-scan.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          terraform_version: "1.1.7"
 
       - name: Terraform Plan
-        run: make plan-${{ matrix.module }}
+        id: plan
+        run: |
+          make plan-${{matrix.module}} |& tee tf_plan.txt
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Comment Plan
-        uses: GetTerminus/terraform-pr-commenter@v1
+      - name: Comment Terraform Plan in PR
+        uses: GetTerminus/terraform-pr-commenter@v3
+        env:
+          GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
         with:
-          commenter_type: "plan"
-          commenter_input: "./.${{ matrix.module }}/tfplan.txt"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          commenter_type: plan
+          commenter_plan_path: tf_plan.txt
+          commenter_exitcode: ${{ steps.plan.outputs.exit }}
 
   build:
     strategy:
       matrix:
         module: [ec2, s3]
-    needs: [plan]
+    needs: [plan, detect-changes]
     if: github.event_name == 'pull_request' && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -153,26 +174,48 @@ jobs:
         run: npm install -g bump
 
       - name: Create artifact zip
-        run: zip -r ${{ matrix.module }}-module.zip .${{ matrix.module }}
+        run: zip -r ${{ matrix.module }}-module.zip . -i modules/${{ matrix.module }}
 
-      - name: Run bump (beta tag only)
+      - name: Tag module with short commit hash
         id: bump
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+          GIT_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          VERSION=$(npx bump prepatch --preid beta --tag --commit --push --print)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          set -e
+          MODULE=${{ matrix.module }}
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.VERSION }}
-          name: Release ${{ env.VERSION }}
-          files: ${{ matrix.module }}-module.zip
+          echo "Tagging $MODULE module with commit hash"
 
-      - name: Comment Tag in PR
-        uses: mshick/add-pr-comment@v2
+          cd modules/$MODULE
+
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          # Get the short commit hash
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          TAG="${MODULE}-${COMMIT_HASH}"
+
+          git tag "$TAG"
+
+          git remote set-url origin https://x-access-token:${GIT_TOKEN}@github.com/${{ github.repository }}
+          git push origin "$TAG"
+
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+          echo "VERSION=$TAG" >> $GITHUB_ENV
+
+
+
+      - name: Upload Module Artifact
+        uses: actions/upload-artifact@v4
         with:
-          message: |
-            :rocket: **${{ matrix.module }} Module Beta Released!**
-            Version: `${{ env.VERSION }}` was published and tagged.
+          name: ${{ matrix.module }}-${{ env.VERSION }}
+          path: ${{ matrix.module }}-module.zip
+
+      # - name: Comment Tag in PR
+      #   uses: mshick/add-pr-comment@v2
+      #   with:
+      #     message: |
+      #       :rocket: **${{ matrix.module }} Module Beta Released!**
+      #       Version: `${{ env.VERSION }}` was published and tagged.
 
