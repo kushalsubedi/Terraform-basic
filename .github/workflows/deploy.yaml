@@ -1,0 +1,57 @@
+name: Terraform module deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: "Terraform module to deploy"
+        required: true
+        type: choice
+        options:
+          - ec2
+          - s3
+      version:
+        description: "Artifact version (e.g., v0.2.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      MODULE: ${{ github.event.inputs.module }}
+      VERSION: ${{ github.event.inputs.version }}
+      ARTIFACT_NAME: ${{ github.event.inputs.module }}-${{ github.event.inputs.version }}
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ./artifact
+
+      - name: Extract artifact
+        run: unzip "./artifact/${{ env.ARTIFACT_NAME }}.zip" -d ./workspace
+
+      - name: Install Terraform & dependencies
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Install make
+        run: sudo apt-get update && sudo apt-get install -y make
+
+      - name: Run make apply
+        run: |
+          cd workspace
+          make apply_${MODULE}
+

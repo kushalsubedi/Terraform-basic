@@ -8,7 +8,6 @@ on:
     paths:
       - 'modules/ec2/**'
       - 'modules/s3/**'
-      - '.github/workflows/**'
 permissions:
   contents: write
   id-token: write
@@ -212,10 +211,10 @@ jobs:
           name: ${{ matrix.module }}-${{ env.VERSION }}
           path: ${{ matrix.module }}-module.zip
 
-      # - name: Comment Tag in PR
-      #   uses: mshick/add-pr-comment@v2
-      #   with:
-      #     message: |
-      #       :rocket: **${{ matrix.module }} Module Beta Released!**
-      #       Version: `${{ env.VERSION }}` was published and tagged.
+      - name: Comment Tag in PR
+        uses: mshick/add-pr-comment@v2
+        with:
+          message: |
+            :rocket: **${{ matrix.module }} Module Beta Released!**
+            Version: `${{ env.VERSION }}` was published and tagged.
 

@@ -86,6 +86,7 @@ jobs:
           git tag "${MODULE}-v$NEXT"
 
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}
+          git pull origin HEAD
           git push origin HEAD
           git push origin "${MODULE}-v$NEXT"
 
