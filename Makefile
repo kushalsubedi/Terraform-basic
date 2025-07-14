@@ -9,10 +9,7 @@ all: apply-ec2 apply-s3
 init-ec2:
 	@mkdir -p $(EC2_DIR)
 	@cp ec2.tf $(EC2_DIR)/
-	@cp terraform.tfvars $(EC2_DIR)
-	@cp locals.tf $(EC2_DIR)
-	@cp terraform.tf $(EC2_DIR)
-	@cp -r modules/ec2 $(EC2_DIR)/      # Copy modules folder
+	@cp -r modules/ $(EC2_DIR)/      # Copy modules folder
 	@cd $(EC2_DIR) && terraform init
 
 plan-ec2: init-ec2
@@ -28,11 +25,9 @@ destroy-ec2:
 init-s3:
 	@mkdir -p $(S3_DIR)
 	@cp s3.tf $(S3_DIR)/
-	@cp -r modules/s3 $(S3_DIR)/
-	@cp terraform.tfvars $(S3_DIR)
-	@cp locals.tf $(S3_DIR)
-	@cp terraform.tf $(S3_DIR)# Copy modules folder
+	@cp -r modules/ $(S3_DIR)/
 	@cd $(S3_DIR) && terraform init
+
 
 plan-s3: init-s3
 	@cd $(S3_DIR) && terraform plan
