@@ -51,6 +51,7 @@ jobs:
             echo "bump_type=patch" >> $GITHUB_OUTPUT
           fi
 
+<<<<<<< HEAD
       - name: Download artifact from previous PR build
         uses: actions/download-artifact@v4
         with:
@@ -64,6 +65,22 @@ jobs:
           echo "Artifact: $FILENAME"
           COMMIT_HASH=$(echo "$FILENAME" | sed -E "s/^${{ matrix.module }}-([a-f0-9]+)\.zip$/\1/")
           echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+=======
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Extract commit hash and artifact path
+        id: extract_hash
+        run: |
+          FILE=$(find ./artifacts -type f -name "${{ matrix.module }}-${{ matrix.module }}-*.zip" | head -n1)
+          echo "Found artifact: $FILE"
+
+          COMMIT_HASH=$(basename "$FILE" | sed -E "s/^${{ matrix.module }}-${{ matrix.module }}-([a-f0-9]+)\.zip$/\1/")
+          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+          echo "ARTIFACT_PATH=$FILE" >> $GITHUB_ENV
+>>>>>>> 341ca93 (feat: release test)
 
       - name: Bump version and tag
         run: |
@@ -71,7 +88,11 @@ jobs:
           MODULE=${{ matrix.module }}
           BUMP_TYPE=${{ steps.bump_type.outputs.bump_type }}
 
+<<<<<<< HEAD
           echo "Releasing $MODULE module with bump type: $BUMP_TYPE"
+=======
+          echo "Bumping $MODULE module with bump type: $BUMP_TYPE"
+>>>>>>> 341ca93 (feat: release test)
           cd modules/$MODULE
 
           CURRENT=$(jq -r .version package.json)
@@ -91,6 +112,7 @@ jobs:
           git push origin HEAD
           git push origin "${MODULE}-v$NEXT"
 
+<<<<<<< HEAD
           echo "RELEASE_VERSION=${NEXT}" >> $GITHUB_ENV
 
       - name: Upload to GitHub Release
@@ -99,6 +121,16 @@ jobs:
           tag_name: ${{ matrix.module }}-v${{ env.RELEASE_VERSION }}
           name: "${{ matrix.module }} module v${{ env.RELEASE_VERSION }}"
           files: ./artifacts/${{ matrix.module }}-${{ env.COMMIT_HASH }}.zip
+=======
+          echo "RELEASE_VERSION=$NEXT" >> $GITHUB_ENV
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2.3
+        with:
+          tag_name: ${{ matrix.module }}-v${{ env.RELEASE_VERSION }}
+          name: "${{ matrix.module }} module v${{ env.RELEASE_VERSION }}"
+          files: ${{ env.ARTIFACT_PATH }}
+>>>>>>> 341ca93 (feat: release test)
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
