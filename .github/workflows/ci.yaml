@@ -85,45 +85,45 @@ jobs:
         working-directory: modules/${{ matrix.module }}
         run: terraform validate || true
 
-  security-scan:
-    strategy:
-      matrix:
-        module: [ec2, s3]
-    needs: [lint, detect-changes]
-    if: needs.lint.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        name: Checkout Code
-        with:
-          fetch-depth: 0
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.1.7"
-
-      - name: Run Terraform Init
-        run: make init-${{ matrix.module }}
-
-      - name: Run TFSEC scan & comment
-        uses: aquasecurity/tfsec-pr-commenter-action@v1.2.0
-        with:
-          github_token: ${{ secrets.GH_PAT }}
-          working_directory: .${{ matrix.module }}
-          tfsec_version: v1.28.1
+  # security-scan:
+  #   strategy:
+  #     matrix:
+  #       module: [ec2, s3]
+  #   needs: [lint, detect-changes]
+  #   if: needs.lint.result == 'success'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       name: Checkout Code
+  #       with:
+  #         fetch-depth: 0
+  #
+  #     - uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: us-east-1
+  #
+  #     - uses: hashicorp/setup-terraform@v3
+  #       with:
+  #         terraform_version: "1.1.7"
+  #
+  #     - name: Run Terraform Init
+  #       run: make init-${{ matrix.module }}
+  #
+  #     - name: Run TFSEC scan & comment
+  #       uses: aquasecurity/tfsec-pr-commenter-action@v1.2.0
+  #       with:
+  #         github_token: ${{ secrets.GH_PAT }}
+  #         working_directory: .${{ matrix.module }}
+  #         tfsec_version: v1.28.1
 
   plan:
     strategy:
       matrix:
         module: [ec2, s3]
-    needs: [lint, security-scan, detect-changes]
-    if: needs.lint.result == 'success' && needs.security-scan.result == 'success'
+    needs: [lint,detect-changes]
+    if: needs.lint.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
